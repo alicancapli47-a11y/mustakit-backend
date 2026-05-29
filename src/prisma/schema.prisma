@@ -1,0 +1,221 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  PROFESSIONAL
+  ADMIN
+}
+
+enum MembershipType {
+  FREE
+  BASIC
+  STANDARD
+  PREMIUM
+}
+
+enum ProjectStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  COMPLETED
+  CANCELLED
+}
+
+enum ProjectStage {
+  RUHSAT
+  KAZI
+  TEMEL
+  DUVAR
+  CATI
+  TESISAT
+  INCE_ISLER
+  TESLIM
+}
+
+enum ProfessionalType {
+  MIMAR
+  TEMEL_USTASI
+  DUVAR_USTASI
+  CATI_USTASI
+  ELEKTRIKCI
+  TESILATCI
+  SIVA_USTASI
+  MALZEMECI
+  DIGER
+}
+
+enum EscrowStatus {
+  BEKLIYOR
+  AKTIF
+  SERBEST
+  IADE
+}
+
+model User {
+  id             String         @id @default(cuid())
+  email          String         @unique
+  name           String?
+  image          String?
+  googleId       String?        @unique
+  role           UserRole       @default(USER)
+  membershipType MembershipType @default(FREE)
+  phone          String?
+  city           String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  projects       Project[]
+  professional   Professional?
+  notifications  Notification[]
+  sentMessages   Message[]      @relation("SentMessages")
+  receivedMessages Message[]    @relation("ReceivedMessages")
+}
+
+model Professional {
+  id          String           @id @default(cuid())
+  userId      String           @unique
+  user        User             @relation(fields: [userId], references: [id])
+  type        ProfessionalType
+  bio         String?
+  city        String?
+  rating      Float            @default(0)
+  jobCount    Int              @default(0)
+  verified    Boolean          @default(false)
+  idVerified  Boolean          @default(false)
+  priceMin    Int?
+  priceMax    Int?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  bids        Bid[]
+  reviews     Review[]
+}
+
+model Project {
+  id          String        @id @default(cuid())
+  userId      String
+  user        User          @relation(fields: [userId], references: [id])
+  name        String
+  city        String
+  area        Int
+  budget      Int?
+  stage       ProjectStage  @default(RUHSAT)
+  status      ProjectStatus @default(DRAFT)
+  description String?
+  aiEstimate  Json?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  bids        Bid[]
+  escrow      Escrow[]
+  photos      ProjectPhoto[]
+  documents   ProjectDocument[]
+}
+
+model Bid {
+  id             String       @id @default(cuid())
+  projectId      String
+  project        Project      @relation(fields: [projectId], references: [id])
+  professionalId String
+  professional   Professional @relation(fields: [professionalId], references: [id])
+  amount         Int
+  description    String?
+  accepted       Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+}
+
+model Escrow {
+  id          String       @id @default(cuid())
+  projectId   String
+  project     Project      @relation(fields: [projectId], references: [id])
+  amount      Int
+  released    Int          @default(0)
+  status      EscrowStatus @default(BEKLIYOR)
+  stage       ProjectStage
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model ProjectPhoto {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id])
+  url       String
+  stage     ProjectStage
+  lat       Float?
+  lng       Float?
+  takenAt   DateTime @default(now())
+  aiChecked Boolean  @default(false)
+  aiResult  Json?
+}
+
+model ProjectDocument {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id])
+  type      String   // ruhsat, tapu, etud
+  url       String
+  verified  Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  name        String
+  category    String
+  price       Int
+  unit        String
+  description String?
+  emoji       String?
+  sellerId    String?
+  stock       Int      @default(0)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+}
+
+model Review {
+  id             String       @id @default(cuid())
+  professionalId String
+  professional   Professional @relation(fields: [professionalId], references: [id])
+  rating         Int
+  comment        String?
+  createdAt      DateTime     @default(now())
+}
+
+model Message {
+  id         String   @id @default(cuid())
+  senderId   String
+  sender     User     @relation("SentMessages", fields: [senderId], references: [id])
+  receiverId String
+  receiver   User     @relation("ReceivedMessages", fields: [receiverId], references: [id])
+  content    String
+  read       Boolean  @default(false)
+  createdAt  DateTime @default(now())
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  title     String
+  body      String
+  read      Boolean  @default(false)
+  type      String   @default("info")
+  createdAt DateTime @default(now())
+}
+
+model BulkEmail {
+  id        String   @id @default(cuid())
+  subject   String
+  body      String
+  sentTo    Int      @default(0)
+  sentAt    DateTime @default(now())
+  sentBy    String
+}
