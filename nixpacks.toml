@@ -5,7 +5,7 @@ nixPkgs = ["nodejs_20"]
 cmds = ["npm install"]
 
 [phases.build]
-cmds = ["npm run build", "npx prisma generate"]
+cmds = ["npm run build", "npx prisma generate", "npx prisma db push --accept-data-loss"]
 
 [start]
 cmd = "node dist/index.js"
