@@ -60,3 +60,7 @@ app.listen(PORT, () => {
 })
 
 export default app
+
+import emailAuthRoutes from './routes/emailAuth'
+// ...
+app.use('/email-auth', emailAuthRoutes)

@@ -20,6 +20,14 @@ enum MembershipType {
   PREMIUM
 }
 
+enum UserType {
+  ARSA_SAHIBI
+  MIMAR
+  USTA
+  MALZEMECI
+  DIGER
+}
+
 enum ProjectStatus {
   DRAFT
   ACTIVE
@@ -59,23 +67,31 @@ enum EscrowStatus {
 }
 
 model User {
-  id             String         @id @default(cuid())
-  email          String         @unique
-  name           String?
-  image          String?
-  googleId       String?        @unique
-  role           UserRole       @default(USER)
-  membershipType MembershipType @default(FREE)
-  phone          String?
-  city           String?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  id                String         @id @default(cuid())
+  email             String         @unique
+  name              String?
+  image             String?
+  googleId          String?        @unique
+  password          String?
+  phone             String?
+  city              String?
+  userType          UserType       @default(ARSA_SAHIBI)
+  role              UserRole       @default(USER)
+  membershipType    MembershipType @default(FREE)
+  emailVerified     Boolean        @default(false)
+  verifyToken       String?
+  resetToken        String?
+  resetTokenExpiry  DateTime?
+  acceptedTerms     Boolean        @default(false)
+  acceptedTermsAt   DateTime?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
 
-  projects       Project[]
-  professional   Professional?
-  notifications  Notification[]
-  sentMessages   Message[]      @relation("SentMessages")
-  receivedMessages Message[]    @relation("ReceivedMessages")
+  projects          Project[]
+  professional      Professional?
+  notifications     Notification[]
+  sentMessages      Message[]      @relation("SentMessages")
+  receivedMessages  Message[]      @relation("ReceivedMessages")
 }
 
 model Professional {
@@ -144,15 +160,15 @@ model Escrow {
 }
 
 model ProjectPhoto {
-  id        String   @id @default(cuid())
+  id        String       @id @default(cuid())
   projectId String
-  project   Project  @relation(fields: [projectId], references: [id])
+  project   Project      @relation(fields: [projectId], references: [id])
   url       String
   stage     ProjectStage
   lat       Float?
   lng       Float?
-  takenAt   DateTime @default(now())
-  aiChecked Boolean  @default(false)
+  takenAt   DateTime     @default(now())
+  aiChecked Boolean      @default(false)
   aiResult  Json?
 }
 
@@ -160,7 +176,7 @@ model ProjectDocument {
   id        String   @id @default(cuid())
   projectId String
   project   Project  @relation(fields: [projectId], references: [id])
-  type      String   // ruhsat, tapu, etud
+  type      String
   url       String
   verified  Boolean  @default(false)
   createdAt DateTime @default(now())
