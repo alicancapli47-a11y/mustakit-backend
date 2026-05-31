@@ -22,6 +22,7 @@ const PORT = process.env.PORT || 4000
 const prisma = new PrismaClient()
 
 app.use(helmet())
+app.set('trust proxy', 1)
 app.use(cors({
   origin: [
     process.env.FRONTEND_URL || 'http://localhost:3000',
