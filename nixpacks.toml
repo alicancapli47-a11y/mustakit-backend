@@ -5,7 +5,7 @@ nixPkgs = ["nodejs_20"]
 cmds = ["npm install"]
 
 [phases.build]
-cmds = ["npm run build", "node ./node_modules/.bin/prisma generate"]
+cmds = ["npm run build", "sh ./node_modules/.bin/prisma generate"]
 
 [start]
-cmd = "node ./node_modules/.bin/prisma db push --accept-data-loss && node dist/index.js"
+cmd = "sh ./node_modules/.bin/prisma db push --accept-data-loss && node dist/index.js"
