@@ -15,6 +15,9 @@ import uploadRoutes from './routes/upload'
 import mailRoutes from './routes/mail'
 import notificationRoutes from './routes/notifications'
 
+import studioRoutes from './routes/studio'
+app.use('/studio', studioRoutes)
+
 dotenv.config()
 
 const app = express()
