@@ -51,7 +51,7 @@ async function createCheckout(data: any) {
     headers: {
       'Accept': 'application/vnd.api+json',
       'Content-Type': 'application/vnd.api+json',
-      'Authorization': `Bearer ${process.env.LS_API_KEY}`,
+      'Authorization': `Bearer ${isTest ? process.env.LS_API_KEY_TEST : process.env.LS_API_KEY_LIVE}`,
     },
     body: JSON.stringify(body),
   })
