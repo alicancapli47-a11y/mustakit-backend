@@ -47,17 +47,7 @@ enum ProjectStage {
   TESLIM
 }
 
-enum ProfessionalType {
-  MIMAR
-  TEMEL_USTASI
-  DUVAR_USTASI
-  CATI_USTASI
-  ELEKTRIKCI
-  TESILATCI
-  SIVA_USTASI
-  MALZEMECI
-  DIGER
-}
+
 
 enum EscrowStatus {
   BEKLIYOR
@@ -98,7 +88,7 @@ model Professional {
   id          String           @id @default(cuid())
   userId      String           @unique
   user        User             @relation(fields: [userId], references: [id])
-  type        ProfessionalType
+  type        String
   bio         String?
   city        String?
   rating      Float            @default(0)
