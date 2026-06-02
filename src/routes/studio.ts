@@ -6,9 +6,7 @@ const resend = new Resend(process.env.RESEND_API_KEY)
 
 async function createCheckout(data: any) {
   const isTest = process.env.LS_TEST_MODE === 'true'
-  const variantId = isTest 
-    ? process.env.LS_VARIANT_ID_TEST 
-    : process.env.LS_VARIANT_ID_LIVE
+  const variantId = process.env.LS_VARIANT_ID_LIVE
 
   console.log('LS Config:', { isTest, variantId, storeId: process.env.LS_STORE_ID })
 
@@ -17,7 +15,7 @@ async function createCheckout(data: any) {
       type: 'checkouts',
       attributes: {
         custom_price: 50000,
-        test_mode: isTest,
+        test_mode: false,
         checkout_data: {
           email: data.email,
           name: data.name,
@@ -51,7 +49,7 @@ async function createCheckout(data: any) {
     headers: {
       'Accept': 'application/vnd.api+json',
       'Content-Type': 'application/vnd.api+json',
-      'Authorization': `Bearer ${isTest ? process.env.LS_API_KEY_TEST : process.env.LS_API_KEY_LIVE}`,
+      'Authorization': `Bearer ${process.env.LS_API_KEY}`,
     },
     body: JSON.stringify(body),
   })
