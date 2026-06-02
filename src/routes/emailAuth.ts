@@ -165,7 +165,25 @@ router.post('/forgot-password', async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Hata oluştu' })
   }
 })
-
+// Bu satırları mevcut emailAuth.ts dosyasındaki router.post('/reset-password') den ÖNCE ekle
+ 
+router.get('/validate-reset-token', async (req: Request, res: Response) => {
+  const { token } = req.query
+  if (!token) return res.json({ valid: false })
+ 
+  try {
+    const user = await prisma.user.findFirst({
+      where: {
+        resetToken: token as string,
+        resetTokenExpiry: { gt: new Date() },
+      },
+    })
+    res.json({ valid: !!user })
+  } catch {
+    res.json({ valid: false })
+  }
+})
+ 
 router.post('/reset-password', async (req: Request, res: Response) => {
   const { token, password } = req.body
   try {
@@ -187,3 +205,5 @@ router.post('/reset-password', async (req: Request, res: Response) => {
 })
 
 export default router
+
+
