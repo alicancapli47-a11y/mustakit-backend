@@ -8,7 +8,9 @@ async function createCheckout(data: any) {
   const isTest = process.env.LS_TEST_MODE === 'true'
   const isYapiProjesi = data.serviceType === 'yapi_projesi'
 
-  const customPrice = isYapiProjesi ? 60000 : 50000
+  // Yapi projesi: 5000 TL toplam, %20 on odeme = 1000 TL = 100000 kurus
+  // Arsa: 4000 TL toplam, %20 on odeme = 800 TL = 80000 kurus
+  const customPrice = isYapiProjesi ? 100000 : 80000
   const variantId = isTest ? process.env.LS_VARIANT_ID_TEST : process.env.LS_VARIANT_ID_LIVE
 
   const body = {
@@ -72,9 +74,10 @@ router.post('/order', async (req: Request, res: Response) => {
     const checkoutUrl = await createCheckout(d)
     if (!checkoutUrl) return res.status(500).json({ error: 'Odeme linki olusturulamadi' })
 
-    const onOdeme = isYapiProjesi ? '600 TL' : '500 TL'
-    const kalanOdeme = isYapiProjesi ? '2.400 TL' : '2.000 TL'
-    const toplamFiyat = isYapiProjesi ? '3.000 TL' : '2.500 TL'
+    // YENI FIYATLANDIRMA: Arsa 4000 TL (%20=800/Kalan=3200), Yapi 5000 TL (%20=1000/Kalan=4000)
+    const onOdeme = isYapiProjesi ? '1.000 TL' : '800 TL'
+    const kalanOdeme = isYapiProjesi ? '4.000 TL' : '3.200 TL'
+    const toplamFiyat = isYapiProjesi ? '5.000 TL' : '4.000 TL'
     const hizmetAdi = isYapiProjesi ? 'Yapi Projesi Videosu' : 'Arsa Videosu'
 
     resend.emails.send({
