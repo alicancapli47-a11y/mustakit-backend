@@ -8,21 +8,15 @@ async function createCheckout(data: any) {
   const isTest = process.env.LS_TEST_MODE === 'true'
   const serviceType = data.serviceType || 'arsa'
 
-  // TR fiyatlandirma (TL kurus): Arsa 4000 TL (%20=800), Yapi 5000 TL (%20=1000)
-  // ENG fiyatlandirma (USD cent): Land $75 (20%=$15), Construction $80 (20%=$16)
+  // ALL PRICES IN USD CENTS NOW (store currency = USD)
+  // Land/Arsa: $75 total, 20% deposit = $15 = 1500 cents
+  // Construction/Yapi: $80 total, 20% deposit = $16 = 1600 cents
   let customPrice: number
-  let currency = 'TRY'
 
-  if (serviceType === 'land_video_eng') {
-    customPrice = 1500 // $15.00 in cents
-    currency = 'USD'
-  } else if (serviceType === 'construction_video_eng') {
-    customPrice = 1600 // $16.00 in cents
-    currency = 'USD'
-  } else if (serviceType === 'yapi_projesi') {
-    customPrice = 100000 // 1.000 TL in kurus
+  if (serviceType === 'yapi_projesi' || serviceType === 'construction_video_eng') {
+    customPrice = 1600 // $16.00
   } else {
-    customPrice = 80000 // 800 TL in kurus (arsa - default)
+    customPrice = 1500 // $15.00 (arsa / land_video_eng / default)
   }
 
   const variantId = isTest ? process.env.LS_VARIANT_ID_TEST : process.env.LS_VARIANT_ID_LIVE
@@ -37,10 +31,10 @@ async function createCheckout(data: any) {
           email: data.email,
           name: data.name,
           custom: {
-            phone: data.phone,
-            city: data.city,
-            area: String(data.area),
-            serviceType,
+            phone: String(data.phone || ''),
+            city: String(data.city || ''),
+            area: String(data.area || 'N/A'),
+            serviceType: String(serviceType),
           },
         },
         product_options: {
@@ -77,8 +71,8 @@ async function createCheckout(data: any) {
   })
 
   const json = await res.json() as any
-  console.log('LS Response status:', res.status, '| Service:', serviceType, '| Price:', customPrice, currency)
-  if (!res.ok) throw new Error(`LS API hatasi: ${JSON.stringify(json?.errors || json)}`)
+  console.log('LS Response status:', res.status, '| Service:', serviceType, '| Price (cents):', customPrice)
+  if (!res.ok) throw new Error(`LS API error: ${JSON.stringify(json?.errors || json)}`)
 
   return json?.data?.attributes?.url
 }
@@ -86,13 +80,13 @@ async function createCheckout(data: any) {
 function getServiceLabels(serviceType: string) {
   switch (serviceType) {
     case 'land_video_eng':
-      return { name: 'Land Video (EN)', total: '$75', deposit: '$15', remaining: '$60', lang: 'en' }
+      return { name: 'Land Video', total: '$75', deposit: '$15', remaining: '$60', lang: 'en' }
     case 'construction_video_eng':
-      return { name: 'Construction Project Video (EN)', total: '$80', deposit: '$16', remaining: '$64', lang: 'en' }
+      return { name: 'Construction Project Video', total: '$80', deposit: '$16', remaining: '$64', lang: 'en' }
     case 'yapi_projesi':
-      return { name: 'Yapi Projesi Videosu', total: '5.000 TL', deposit: '1.000 TL', remaining: '4.000 TL', lang: 'tr' }
+      return { name: 'Yapi Projesi Videosu', total: '$80', deposit: '$16', remaining: '$64', lang: 'tr' }
     default:
-      return { name: 'Arsa Videosu', total: '4.000 TL', deposit: '800 TL', remaining: '3.200 TL', lang: 'tr' }
+      return { name: 'Arsa Videosu', total: '$75', deposit: '$15', remaining: '$60', lang: 'tr' }
   }
 }
 
@@ -107,7 +101,6 @@ router.post('/order', async (req: Request, res: Response) => {
     if (!checkoutUrl) return res.status(500).json({ error: 'Could not create checkout link' })
 
     if (labels.lang === 'en') {
-      // ENGLISH EMAILS
       resend.emails.send({
         from: 'Mustakit Studio <info@mustakit.com>',
         to: 'tvarzmedya@gmail.com',
@@ -177,7 +170,6 @@ router.post('/order', async (req: Request, res: Response) => {
       }).catch(e => console.error('Customer mail error:', e))
 
     } else {
-      // TURKISH EMAILS (existing flow)
       resend.emails.send({
         from: 'Mustakit Studio <info@mustakit.com>',
         to: 'tvarzmedya@gmail.com',
@@ -202,7 +194,7 @@ router.post('/order', async (req: Request, res: Response) => {
               <b>Tip:</b> ${d.zoning || '-'}<br>
               ${d.unitCount ? `<b>Birim Sayisi:</b> ${d.unitCount}<br>` : ''}
               ${d.deliveryDate ? `<b>Teslim Tarihi:</b> ${d.deliveryDate}<br>` : ''}
-              ${d.price ? `<b>Fiyat:</b> ${Number(d.price).toLocaleString('tr-TR')} TL<br>` : ''}
+              ${d.price ? `<b>Fiyat:</b> ${d.price}<br>` : ''}
               <b>Ozellikler:</b> ${d.features || d.infra || '-'}<br>
               ${d.maps_link ? `<b>Harita:</b> <a href="${d.maps_link}">Google Maps</a><br>` : ''}
               ${d.drone_link ? `<b>Drone:</b> <a href="${d.drone_link}">Video</a><br>` : ''}
