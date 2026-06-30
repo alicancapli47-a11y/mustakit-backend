@@ -248,3 +248,149 @@ router.post('/order', async (req: Request, res: Response) => {
 })
 
 export default router
+
+
+// Bu endpoint'i mevcut studio.ts dosyasının sonuna ekle (export default router'dan ONCE)
+// order-fiverr endpoint'inin altina ekleyebilirsin
+
+async function createTRCheckout(data: any) {
+  const isTest = process.env.LS_TEST_MODE === 'true'
+  const isStandart = data.packageType === 'standart'
+
+  const customPrice = isStandart ? 200000 : 150000 // kurus/cent bazinda - store para birimine gore yorumlanir
+
+  const variantId = isTest ? process.env.LS_VARIANT_ID_TEST : process.env.LS_VARIANT_ID_LIVE
+
+  const body = {
+    data: {
+      type: 'checkouts',
+      attributes: {
+        custom_price: customPrice,
+        test_mode: isTest,
+        checkout_data: {
+          email: data.email,
+          name: data.name,
+          custom: {
+            phone: String(data.phone || ''),
+            city: String(data.city || ''),
+            packageType: String(data.packageType || 'minimal'),
+          },
+        },
+        product_options: {
+          redirect_url: 'https://studio.mustakit.com',
+          receipt_thank_you_note: 'Odemeniz alindi! Ekibimiz en kisa surede iletisime gececek.',
+        },
+        checkout_options: {
+          button_color: '#F26419',
+        },
+      },
+      relationships: {
+        store: {
+          data: { type: 'stores', id: String(process.env.LS_STORE_ID) },
+        },
+        variant: {
+          data: { type: 'variants', id: String(variantId) },
+        },
+      },
+    },
+  }
+
+  const res = await fetch('https://api.lemonsqueezy.com/v1/checkouts', {
+    method: 'POST',
+    headers: {
+      'Accept': 'application/vnd.api+json',
+      'Content-Type': 'application/vnd.api+json',
+      'Authorization': `Bearer ${process.env.LS_API_KEY}`,
+    },
+    body: JSON.stringify(body),
+  })
+
+  const json = await res.json() as any
+  console.log('TR LS Response status:', res.status, '| Package:', data.packageType, '| Price:', customPrice)
+  if (!res.ok) throw new Error(`LS API hatasi: ${JSON.stringify(json?.errors || json)}`)
+
+  return json?.data?.attributes?.url
+}
+
+router.post('/order-tr', async (req: Request, res: Response) => {
+  const d = req.body
+  console.log('TR Studio order received:', d.name, d.email, d.city, '| Package:', d.packageName, '| Payment:', d.paymentMethod)
+
+  try {
+    let checkoutUrl: string | undefined
+
+    if (d.paymentMethod === 'lemonsqueezy') {
+      checkoutUrl = await createTRCheckout(d)
+    }
+
+    resend.emails.send({
+      from: 'Mustakit Studio <info@mustakit.com>',
+      to: 'tvarzmedya@gmail.com',
+      subject: `Yeni Siparis - ${d.packageName} (${d.packagePrice}) - ${d.name} | ${d.city}`,
+      html: `
+        <div style="font-family:Inter,sans-serif;max-width:700px;margin:0 auto;padding:32px 24px;">
+          <div style="font-size:22px;font-weight:800;color:#F26419;margin-bottom:8px;">Mustakit Studio</div>
+          <div style="background:#1a1a1a;color:white;display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700;margin-bottom:8px;">${d.packageName} - ${d.packagePrice}</div>
+          <div style="background:${d.paymentMethod === 'shopier' ? '#1DBF73' : '#635BFF'};color:white;display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700;margin-bottom:16px;margin-left:8px;">${d.paymentMethod === 'shopier' ? 'Shopier' : 'Kart/LS'}</div>
+          <p style="color:#777;margin-bottom:24px;">Yeni siparis - odeme baslatildi</p>
+
+          <div style="background:#f7f4f1;border-radius:12px;padding:20px;margin-bottom:16px;">
+            <b>Ad:</b> ${d.name}<br>
+            <b>Firma:</b> ${d.company || '-'}<br>
+            <b>E-posta:</b> <a href="mailto:${d.email}">${d.email}</a><br>
+            <b>Telefon:</b> ${d.phone}<br>
+          </div>
+
+          <div style="background:#f7f4f1;border-radius:12px;padding:20px;margin-bottom:16px;">
+            <b>Konum:</b> ${d.city} / ${d.district || ''}<br>
+            ${d.projectName ? `<b>Proje/Arsa Adi:</b> ${d.projectName}<br>` : ''}
+            <b>Alan:</b> ${d.area || '-'}<br>
+            ${d.maps_link ? `<b>Harita:</b> <a href="${d.maps_link}">Google Maps</a><br>` : ''}
+            ${d.drone_link ? `<b>Drone:</b> <a href="${d.drone_link}">Video</a><br>` : ''}
+          </div>
+
+          <div style="background:#f7f4f1;border-radius:12px;padding:20px;margin-bottom:16px;">
+            <p style="font-size:14px;line-height:1.7;">${d.description || '-'}</p>
+            ${d.highlights ? `<p style="font-size:13px;color:#F26419;"><b>Vurgulanacaklar:</b> ${d.highlights}</p>` : ''}
+          </div>
+
+          ${d.krokiFiles ? `<div style="background:#e8f4ff;border-radius:10px;padding:14px;font-size:13px;margin-bottom:12px;">Kroki/Plan: ${d.krokiFiles}</div>` : ''}
+          ${d.files ? `<div style="background:#fff8f5;border-radius:10px;padding:14px;font-size:13px;margin-bottom:16px;">Fotograflar: ${d.files}</div>` : ''}
+
+          <div style="background:#F26419;color:white;border-radius:12px;padding:20px;text-align:center;">
+            <b>1-2 is gunu icinde teslim edilmeli</b><br>
+            <span style="font-size:13px;opacity:0.9;">Paket: ${d.packageName} - Fiyat: ${d.packagePrice} - Odeme: ${d.paymentMethod === 'shopier' ? 'Shopier (takip et)' : 'Kart (otomatik)'}</span>
+          </div>
+        </div>
+      `,
+    }).catch(e => console.error('Mail hatasi:', e))
+
+    resend.emails.send({
+      from: 'Mustakit Studio <info@mustakit.com>',
+      to: d.email,
+      subject: 'Siparisiniz alindi - Mustakit Studio',
+      html: `
+        <div style="font-family:Inter,sans-serif;max-width:600px;margin:0 auto;padding:32px 24px;">
+          <div style="font-size:22px;font-weight:800;color:#F26419;margin-bottom:24px;">Mustakit Studio</div>
+          <h2 style="font-size:20px;margin-bottom:12px;">Merhaba ${d.name}!</h2>
+          <p style="font-size:15px;color:#555;line-height:1.7;margin-bottom:16px;">
+            ${d.packageName} siparisiniz alindi. Odemeniz tamamlandiktan sonra video hazirligimiz baslayacak.
+          </p>
+          <div style="background:#f7f4f1;border-radius:12px;padding:20px;font-size:14px;line-height:1.8;margin-bottom:24px;">
+            Paket: ${d.packageName}<br>
+            Fiyat: ${d.packagePrice}<br>
+            Konum: ${d.city} / ${d.district || ''}<br>
+            Tahmini Teslim: 1-2 is gunu
+          </div>
+          <p style="font-size:13px;color:#999;">Sorular icin <a href="mailto:tvarzmedya@gmail.com" style="color:#F26419;">tvarzmedya@gmail.com</a></p>
+        </div>
+      `,
+    }).catch(e => console.error('Musteri mail hatasi:', e))
+
+    res.json({ success: true, checkoutUrl })
+
+  } catch (error: any) {
+    console.error('TR Studio order error:', error?.message || error)
+    res.status(500).json({ error: error?.message || 'Islem basarisiz' })
+  }
+})
