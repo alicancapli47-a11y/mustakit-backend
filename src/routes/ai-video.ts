@@ -1,32 +1,41 @@
-// Bu kodu backend/src/routes/ klasörüne ai-video.ts olarak ekle
-// Sonra server.ts'e import edip app.use('/ai-video', aiVideoRouter) ekle
-
 import { Router, Request, Response } from 'express'
 import Anthropic from '@anthropic-ai/sdk'
+import { v2 as cloudinary } from 'cloudinary'
 
 const router = Router()
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+})
+
+async function uploadToCloudinary(base64: string, index: number): Promise<string> {
+  const result = await cloudinary.uploader.upload(`data:image/jpeg;base64,${base64}`, {
+    folder: 'mustakit-ai-video',
+    public_id: `render-${Date.now()}-${index}`,
+    resource_type: 'image',
+  })
+  return result.secure_url
+}
+
 router.post('/generate', async (req: Request, res: Response) => {
-  const { images, resolution = '480p', speed = 'fast', duration = 10 } = req.body
+  const { images, prompt: customPrompt, resolution = '480p', speed = 'fast', duration = 10, analyzeOnly = false } = req.body
 
   if (!images || !Array.isArray(images) || images.length === 0) {
     return res.status(400).json({ error: 'En az 1 görsel gerekli' })
   }
 
-  console.log(`AI Video request: ${images.length} görsel, ${resolution}, ${speed}, ${duration}s`)
+  console.log(`AI Video request: ${images.length} görsel, ${resolution}, ${speed}, ${duration}s, analyzeOnly: ${analyzeOnly}`)
 
   try {
     // 1. Claude ile prompt üret
     const refTags = images.map((_: any, i: number) => `@Image${i + 1}`).join(' ')
 
-    const claudeContent: any[] = images.map((b64: string, i: number) => ({
+    const claudeContent: any[] = images.map((b64: string) => ({
       type: 'image',
-      source: {
-        type: 'base64',
-        media_type: 'image/jpeg',
-        data: b64
-      }
+      source: { type: 'base64', media_type: 'image/jpeg', data: b64 }
     }))
 
     claudeContent.push({
@@ -56,24 +65,32 @@ Write ONLY the prompt, nothing else. No explanation, no preamble.`
       messages: [{ role: 'user', content: claudeContent }]
     })
 
-    const prompt = (claudeResponse.content[0] as any).text.trim()
-    console.log('Claude prompt üretildi:', prompt.substring(0, 100) + '...')
+    const prompt = customPrompt || (claudeResponse.content[0] as any).text.trim()
+    console.log('Claude prompt:', prompt.substring(0, 100) + '...')
 
-    // 2. EvoLink'e gönder
-    const modelName = speed === 'fast' ? 'seedance-2-0-fast' : 'seedance-2-0'
-
-    const evolinkBody = {
-      model: modelName,
-      prompt,
-      resolution,
-      duration,
-      images: images.map((b64: string, i: number) => ({
-        image: b64,
-        tag: `Image${i + 1}`
-      }))
+    // Sadece prompt isteniyorsa burada dur
+    if (analyzeOnly) {
+      return res.json({ success: true, prompt })
     }
 
-    const evolinkResponse = await fetch('https://api.evolink.ai/v1/video/generate', {
+    // 2. Görselleri Cloudinary'e yükle → URL al
+    console.log('Cloudinary\'e yükleniyor...')
+    const imageUrls = await Promise.all(images.map((b64: string, i: number) => uploadToCloudinary(b64, i)))
+    console.log('Cloudinary URLs:', imageUrls)
+
+    // 3. EvoLink'e gönder
+    const evolinkBody = {
+      model: 'seedance-2.0-reference-to-video',
+      prompt,
+      image_urls: imageUrls,
+      duration,
+      quality: resolution,
+      aspect_ratio: '16:9',
+      generate_audio: true,
+      content_filter: true,
+    }
+
+    const evolinkResponse = await fetch('https://api.evolink.ai/v1/videos/generations', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -83,18 +100,21 @@ Write ONLY the prompt, nothing else. No explanation, no preamble.`
     })
 
     const evolinkData = await evolinkResponse.json() as any
+    console.log('EvoLink response:', JSON.stringify(evolinkData).substring(0, 200))
 
     if (!evolinkResponse.ok) {
-      throw new Error(evolinkData.message || evolinkData.error || 'EvoLink API hatası')
+      const errMsg = evolinkData?.error?.message || evolinkData?.message || JSON.stringify(evolinkData)
+      throw new Error(`EvoLink: ${errMsg}`)
     }
 
-    console.log('EvoLink task oluşturuldu:', evolinkData.task_id || evolinkData.id)
+    console.log('EvoLink task ID:', evolinkData.id)
 
     res.json({
       success: true,
       prompt,
-      taskId: evolinkData.task_id || evolinkData.id,
-      raw: evolinkData
+      taskId: evolinkData.id,
+      status: evolinkData.status,
+      estimatedTime: evolinkData.task_info?.estimated_time,
     })
 
   } catch (error: any) {
@@ -103,17 +123,23 @@ Write ONLY the prompt, nothing else. No explanation, no preamble.`
   }
 })
 
-// Video durumu kontrol endpoint'i
+// Video durum kontrolü
 router.get('/status/:taskId', async (req: Request, res: Response) => {
   const { taskId } = req.params
 
   try {
-    const response = await fetch(`https://api.evolink.ai/v1/video/task/${taskId}`, {
+    const response = await fetch(`https://api.evolink.ai/v1/videos/generations/${taskId}`, {
       headers: { 'Authorization': `Bearer ${process.env.EVOLINK_API_KEY}` }
     })
 
-    const data = await response.json()
-    res.json(data)
+    const data = await response.json() as any
+
+    res.json({
+      status: data.status,
+      progress: data.progress,
+      videoUrl: data.task_info?.video_url || data.video_url || null,
+      raw: data
+    })
 
   } catch (error: any) {
     res.status(500).json({ error: error?.message })
