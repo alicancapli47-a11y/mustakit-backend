@@ -1,4 +1,7 @@
-﻿import express from 'express'
+﻿import aiVideoRouter from './routes/ai-video'
+
+
+import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
 import dotenv from 'dotenv'
@@ -35,6 +38,7 @@ app.use('/upload', uploadRoutes)
 app.use('/mail', mailRoutes)
 app.use('/notifications', notificationRoutes)
 app.use('/studio', studioRoutes)
+app.use('/ai-video', aiVideoRouter)
 app.get('/health', (req, res) => { res.json({ status: 'ok', timestamp: new Date().toISOString() }) })
 async function main() {
   try { await prisma.$connect(); console.log('Veritabani baglandi') }
