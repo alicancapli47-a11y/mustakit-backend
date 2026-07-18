@@ -394,3 +394,6 @@ router.post('/order-tr', async (req: Request, res: Response) => {
     res.status(500).json({ error: error?.message || 'Islem basarisiz' })
   }
 })
+
+import aiVideoRouter from './routes/ai-video'
+app.use('/ai-video', aiVideoRouter)
