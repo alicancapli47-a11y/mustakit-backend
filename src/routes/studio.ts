@@ -394,3 +394,102 @@ router.post('/order-tr', async (req: Request, res: Response) => {
     res.status(500).json({ error: error?.message || 'Islem basarisiz' })
   }
 })
+
+// ============================================================
+// WEBHOOK - Lemon Squeezy odeme bildirimi
+// ============================================================
+const AI_VIDEO_VARIANT_ID = '1926389'
+
+router.post('/webhook', async (req: Request, res: Response) => {
+  const event = req.headers['x-event-name'] as string
+  const body = req.body
+
+  console.log('LS Webhook:', event)
+
+  if (event !== 'order_created') {
+    return res.json({ received: true })
+  }
+
+  try {
+    const order = body?.data?.attributes
+    const variantId = String(body?.data?.relationships?.variant?.data?.id || '')
+    const customerEmail = order?.user_email || ''
+    const customerName = order?.user_name || ''
+    const total = order?.total_formatted || ''
+
+    console.log('Order webhook - variant:', variantId, '| email:', customerEmail)
+
+    // AI Video paketi (600 TL)
+    if (variantId === AI_VIDEO_VARIANT_ID) {
+      // Sana bildirim
+      resend.emails.send({
+        from: 'Mustakit Studio <info@mustakit.com>',
+        to: 'tvarzmedya@gmail.com',
+        subject: `⚡ Yeni AI Video Siparisi - ${customerName} (${total})`,
+        html: `
+          <div style="font-family:Inter,sans-serif;max-width:600px;margin:0 auto;padding:32px 24px;">
+            <div style="font-size:22px;font-weight:800;color:#F26419;margin-bottom:8px;">Mustakit Studio</div>
+            <div style="background:#F26419;color:white;display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700;margin-bottom:16px;">⚡ AI Video - 600 TL</div>
+            <p style="color:#555;margin-bottom:20px;">Odeme tamamlandi. Musteri gorsellerini gondermeyi bekliyor.</p>
+            <div style="background:#f7f4f1;border-radius:12px;padding:20px;margin-bottom:16px;">
+              <b>Ad:</b> ${customerName}<br>
+              <b>E-posta:</b> <a href="mailto:${customerEmail}">${customerEmail}</a><br>
+              <b>Odeme:</b> ${total}
+            </div>
+            <div style="background:#fff8f5;border-radius:10px;padding:14px;font-size:13px;color:#7a3a10;">
+              Musteri render gorsellerini gondermesi icin gorsel yukle maili gidecek.
+              Goller gelince AI Video aracini kullanarak 30 dakika icinde teslim et.
+            </div>
+          </div>
+        `,
+      }).catch(e => console.error('Admin mail hatasi:', e))
+
+      // Müşteriye "Gorsellerinizi gonderin" maili
+      resend.emails.send({
+        from: 'Mustakit Studio <info@mustakit.com>',
+        to: customerEmail,
+        subject: 'Odemeniz alindi! Simdi render gorsellerinizi gonderin — Mustakit Studio',
+        html: `
+          <div style="font-family:Inter,sans-serif;max-width:600px;margin:0 auto;padding:32px 24px;">
+            <div style="font-size:22px;font-weight:800;color:#F26419;margin-bottom:24px;">Mustakit Studio</div>
+            <h2 style="font-size:20px;margin-bottom:12px;">Merhaba ${customerName}!</h2>
+            <p style="font-size:15px;color:#555;line-height:1.7;margin-bottom:20px;">
+              <strong>600 TL odemeniz basariyla alindi.</strong> Harika! Simdi tek yapmaniz gereken
+              projenizin render gorsellerini bize gondermek.
+            </p>
+
+            <div style="background:#F26419;color:white;border-radius:14px;padding:24px;margin-bottom:24px;text-align:center;">
+              <div style="font-size:32px;margin-bottom:8px;">⚡</div>
+              <div style="font-size:18px;font-weight:800;margin-bottom:6px;">30 Dakika Icinde Teslim</div>
+              <div style="font-size:13px;opacity:0.9;">Gorselleri alir almaz AI sistemi harekete geciyor</div>
+            </div>
+
+            <div style="background:#f7f4f1;border-radius:12px;padding:20px;margin-bottom:20px;">
+              <div style="font-weight:700;font-size:15px;margin-bottom:12px;">Gorsellerinizi su adrese gonderin:</div>
+              <a href="mailto:tvarzmedya@gmail.com" style="color:#F26419;font-size:18px;font-weight:700;">tvarzmedya@gmail.com</a>
+              <div style="font-size:13px;color:#777;margin-top:10px;line-height:1.6;">
+                En az 2, en fazla 9 adet render gorseli gonderin.<br>
+                JPG veya PNG formati, yuksek cozunurluk tercih edilir.<br>
+                Proje adi ve kisaca aciklama da ekleyin.
+              </div>
+            </div>
+
+            <div style="font-size:13px;color:#999;line-height:1.6;">
+              Sorulariniz icin: <a href="mailto:tvarzmedya@gmail.com" style="color:#F26419;">tvarzmedya@gmail.com</a>
+            </div>
+          </div>
+        `,
+      }).catch(e => console.error('Musteri mail hatasi:', e))
+
+      return res.json({ received: true, handled: 'ai_video' })
+    }
+
+    // Diger siparisler (arsa, yapi projesi vs.) - sadece log
+    console.log('Diger variant webhook:', variantId)
+    res.json({ received: true })
+
+  } catch (error: any) {
+    console.error('Webhook error:', error?.message)
+    res.status(500).json({ error: error?.message })
+  }
+})
